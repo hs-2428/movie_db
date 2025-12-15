@@ -12,14 +12,22 @@ import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.movies_db.MainActivity
 import com.example.movies_db.R
+import com.example.movies_db.data.local.MovieDao
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
-class ReleaseNotificationWorker(
-    context: Context,
-    workerParams: WorkerParameters
+@HiltWorker
+class ReleaseNotificationWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted workerParams: WorkerParameters,
+    private val movieDao: MovieDao
 ) : CoroutineWorker(context, workerParams) {
 
     companion object {
@@ -37,9 +45,19 @@ class ReleaseNotificationWorker(
                 return Result.success()
             }
 
-            // Simulate getting released movies
-            val mockMovie = MockMovie(123, "The Amazing Movie")
-            showNotification(mockMovie.id, mockMovie.title)
+            // Get upcoming movies from watchlist
+            val upcomingMovies = movieDao.getUpcomingWatchlist()
+            val today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            
+            // Check if any movies have release date equals to today
+            val releasedToday = upcomingMovies.filter { movie ->
+                movie.releaseDate == today
+            }
+            
+            // Send notifications for movies released today
+            releasedToday.forEach { movie ->
+                showNotification(movie.id, movie.title)
+            }
             
             Result.success()
         } catch (e: Exception) {
@@ -132,8 +150,4 @@ class ReleaseNotificationWorker(
         )
     }
 
-    private data class MockMovie(
-        val id: Int,
-        val title: String
-    )
 }

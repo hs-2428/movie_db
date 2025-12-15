@@ -16,4 +16,7 @@ interface MovieDao {
 
     @Query("SELECT * FROM movies WHERE title LIKE '%' || :query || '%'")
     suspend fun searchCachedMovies(query: String): List<MovieEntity>
+
+    @Query("SELECT * FROM movies WHERE isInWatchlist = 1 AND releaseDate >= date('now')")
+    suspend fun getUpcomingWatchlist(): List<MovieEntity>
 }

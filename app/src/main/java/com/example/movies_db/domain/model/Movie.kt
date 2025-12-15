@@ -7,3 +7,18 @@ data class Movie(
     val releaseDate: String,
     val inWatchlist: Boolean = false
 )
+
+data class MoviePage(
+    val page: Int,
+    val results: List<Movie>,
+    val totalResults: Int,
+    val totalPages: Int
+)
+
+data class PaginatedMovies(
+    val movies: List<Movie>,
+    val currentPage: Int,
+    val hasNextPage: Boolean,
+    val isLoading: Boolean = false,
+    val isError: Boolean = false
+)

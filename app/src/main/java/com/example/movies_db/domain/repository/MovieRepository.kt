@@ -1,10 +1,12 @@
 package com.example.movies_db.domain.repository
 
 import com.example.movies_db.domain.model.Movie
+import com.example.movies_db.domain.model.MoviePage
 import kotlinx.coroutines.flow.Flow
 
 interface MovieRepository {
-    suspend fun getPopularMovies(page: Int): List<Movie>
+    suspend fun getPopularMovies(page: Int): MoviePage
+    suspend fun searchMovies(query: String, page: Int): MoviePage
     fun getWatchlist(): Flow<List<Movie>>
     suspend fun toggleWatchlist(movie: Movie)
 }

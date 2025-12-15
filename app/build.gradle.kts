@@ -85,6 +85,10 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    // Hilt Navigation Compose
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+    // ViewModel Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

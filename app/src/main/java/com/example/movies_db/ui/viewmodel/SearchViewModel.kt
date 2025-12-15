@@ -3,143 +3,204 @@ package com.example.movies_db.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.movies_db.domain.model.Movie
-import com.example.movies_db.domain.model.PaginatedMovies
+import com.example.movies_db.domain.model.MovieFilter
 import com.example.movies_db.domain.model.Resource
 import com.example.movies_db.domain.repository.MovieRepository
+import com.example.movies_db.ui.state.SearchUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val movieRepository: MovieRepository
 ) : ViewModel() {
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    private val _currentFilter = MutableStateFlow(MovieFilter())
+    val currentFilter: StateFlow<MovieFilter> = _currentFilter.asStateFlow()
 
-    private val _moviesState = MutableStateFlow(
-        PaginatedMovies(
-            movies = emptyList(),
-            currentPage = 0,
-            hasNextPage = true,
-            isLoading = false,
-            isError = false
-        )
-    )
-    val moviesState: StateFlow<PaginatedMovies> = _moviesState.asStateFlow()
+    private val _uiState = MutableStateFlow<SearchUiState>(SearchUiState.Loading)
+    val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
-    private var currentSearchQuery = ""
-    private var isLoadingNextPage = false
+    private var currentMovies = emptyList<Movie>()
+    private var currentPage = 0
+    private var hasNextPage = true
+    private var isLoadingMore = false
 
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-        if (query.isNotBlank() && query != currentSearchQuery) {
-            currentSearchQuery = query
-            searchMovies(query, isNewSearch = true)
-        } else if (query.isBlank()) {
-            loadPopularMovies(isNewSearch = true)
+    init {
+        // Debounce filter changes to avoid API spam
+        viewModelScope.launch {
+            _currentFilter
+                .debounce(300)
+                .distinctUntilChanged()
+                .collect { filter ->
+                    performSearch(filter, isNewSearch = true)
+                }
         }
+        
+        // Load popular movies initially
+        loadPopularMovies()
+    }
+
+    fun updateQuery(query: String) {
+        _currentFilter.value = _currentFilter.value.copy(query = query.trim())
+    }
+
+    fun updateGenre(genre: String?) {
+        _currentFilter.value = _currentFilter.value.copy(genre = genre)
+    }
+
+    fun updateYear(year: Int?) {
+        _currentFilter.value = _currentFilter.value.copy(year = year)
+    }
+
+    fun updateRatingRange(minRating: Float, maxRating: Float) {
+        _currentFilter.value = _currentFilter.value.copy(
+            minRating = minRating,
+            maxRating = maxRating
+        )
+    }
+
+    fun clearFilters() {
+        _currentFilter.value = MovieFilter()
     }
 
     fun loadMoreMovies() {
-        if (isLoadingNextPage || !_moviesState.value.hasNextPage) return
+        if (isLoadingMore || !hasNextPage) return
         
-        if (currentSearchQuery.isNotBlank()) {
-            searchMovies(currentSearchQuery, isNewSearch = false)
+        val filter = _currentFilter.value
+        if (filter.isEmpty()) {
+            loadPopularMovies(isLoadMore = true)
         } else {
-            loadPopularMovies(isNewSearch = false)
+            performSearch(filter, isNewSearch = false)
         }
     }
 
-    private fun searchMovies(query: String, isNewSearch: Boolean) {
+    private fun performSearch(filter: MovieFilter, isNewSearch: Boolean) {
+        if (filter.isEmpty()) {
+            loadPopularMovies()
+            return
+        }
+
         viewModelScope.launch {
-            isLoadingNextPage = true
-            val targetPage = if (isNewSearch) 1 else _moviesState.value.currentPage + 1
+            isLoadingMore = !isNewSearch
+            val targetPage = if (isNewSearch) 1 else currentPage + 1
             
             if (isNewSearch) {
-                _moviesState.value = _moviesState.value.copy(isLoading = true, isError = false)
+                _uiState.value = SearchUiState.Loading
+                currentMovies = emptyList()
+                currentPage = 0
             }
 
-            movieRepository.searchMovies(query, targetPage)
+            movieRepository.searchMovies(filter.query, targetPage)
                 .catch { e ->
-                    _moviesState.value = _moviesState.value.copy(
-                        isLoading = false,
-                        isError = true
-                    )
-                    isLoadingNextPage = false
+                    handleError("Search failed")
                 }
                 .collect { resource ->
-                    when (resource) {
-                        is Resource.Loading -> {
-                            if (isNewSearch) {
-                                _moviesState.value = _moviesState.value.copy(isLoading = true, isError = false)
-                            }
-                        }
-                        is Resource.Success -> {
-                            val moviePage = resource.data
-                            val existingMovies = if (isNewSearch) emptyList() else _moviesState.value.movies
-                            val newMovies = existingMovies + moviePage.results
-                            
-                            _moviesState.value = PaginatedMovies(
-                                movies = newMovies,
-                                currentPage = moviePage.page,
-                                hasNextPage = moviePage.page < moviePage.totalPages,
-                                isLoading = false,
-                                isError = false
-                            )
-                            isLoadingNextPage = false
-                        }
-                        is Resource.Error -> {
-                            _moviesState.value = _moviesState.value.copy(
-                                isLoading = false,
-                                isError = true
-                            )
-                            isLoadingNextPage = false
-                        }
-                    }
+                    handleSearchResource(resource, isNewSearch, filter)
                 }
         }
     }
 
-    private fun loadPopularMovies(isNewSearch: Boolean) {
-        viewModelScope.launch {
-            isLoadingNextPage = true
-            val targetPage = if (isNewSearch) 1 else _moviesState.value.currentPage + 1
+    private fun handleSearchResource(
+        resource: Resource<*>, 
+        isNewSearch: Boolean, 
+        filter: MovieFilter
+    ) {
+        when (resource) {
+            is Resource.Loading -> {
+                if (isNewSearch) {
+                    _uiState.value = SearchUiState.Loading
+                }
+            }
+            is Resource.Success -> {
+                val moviePage = resource.data as com.example.movies_db.domain.model.MoviePage
+                val filteredMovies = applyLocalFilters(moviePage.results, filter)
+                
+                if (isNewSearch) {
+                    currentMovies = filteredMovies
+                } else {
+                    currentMovies = currentMovies + filteredMovies
+                }
+                
+                currentPage = moviePage.page
+                hasNextPage = moviePage.page < moviePage.totalPages
+                
+                _uiState.value = when {
+                    currentMovies.isEmpty() -> SearchUiState.Empty
+                    else -> SearchUiState.Success(currentMovies, hasNextPage)
+                }
+                
+                isLoadingMore = false
+            }
+            is Resource.Error -> {
+                handleError(resource.message)
+            }
+        }
+    }
+
+    private fun applyLocalFilters(movies: List<Movie>, filter: MovieFilter): List<Movie> {
+        return movies.filter { movie ->
+            var matches = true
             
-            if (isNewSearch) {
-                _moviesState.value = _moviesState.value.copy(isLoading = true, isError = false)
+            // Year filter
+            if (filter.year != null) {
+                val movieYear = movie.releaseDate.split("-").getOrNull(0)?.toIntOrNull()
+                matches = matches && movieYear == filter.year
+            }
+            
+            // Future: Add genre and rating filters when Movie model is extended
+            
+            matches
+        }
+    }
+
+    private fun loadPopularMovies(isLoadMore: Boolean = false) {
+        viewModelScope.launch {
+            isLoadingMore = isLoadMore
+            val targetPage = if (isLoadMore) currentPage + 1 else 1
+            
+            if (!isLoadMore) {
+                _uiState.value = SearchUiState.Loading
+                currentMovies = emptyList()
+                currentPage = 0
             }
 
             try {
                 val moviePage = movieRepository.getPopularMovies(targetPage)
                 
-                val existingMovies = if (isNewSearch) emptyList() else _moviesState.value.movies
-                val newMovies = existingMovies + moviePage.results
+                if (isLoadMore) {
+                    currentMovies = currentMovies + moviePage.results
+                } else {
+                    currentMovies = moviePage.results
+                }
                 
-                _moviesState.value = PaginatedMovies(
-                    movies = newMovies,
-                    currentPage = moviePage.page,
-                    hasNextPage = moviePage.page < moviePage.totalPages,
-                    isLoading = false,
-                    isError = false
-                )
+                currentPage = moviePage.page
+                hasNextPage = moviePage.page < moviePage.totalPages
+                
+                _uiState.value = when {
+                    currentMovies.isEmpty() -> SearchUiState.Empty
+                    else -> SearchUiState.Success(currentMovies, hasNextPage)
+                }
+                
             } catch (e: Exception) {
-                _moviesState.value = _moviesState.value.copy(
-                    isLoading = false,
-                    isError = true
-                )
+                handleError("Failed to load movies")
             } finally {
-                isLoadingNextPage = false
+                isLoadingMore = false
             }
         }
     }
 
-    init {
-        loadPopularMovies(isNewSearch = true)
+    private fun handleError(message: String) {
+        _uiState.value = SearchUiState.Error(message)
+        isLoadingMore = false
     }
 }

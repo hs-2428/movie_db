@@ -39,18 +39,15 @@ class MovieRepositoryImpl @Inject constructor(
     }
 
     override fun searchMovies(query: String, page: Int): Flow<Resource<MoviePage>> = flow {
-        // Emit loading state
         emit(Resource.Loading())
         
         try {
-            // Primary: Call apiService.discoverMovies with filters (using searchMovies endpoint)
             val response = apiService.searchMovies(
                 apiKey = "your_api_key_here", // TODO: Use BuildConfig.API_KEY
                 query = query,
                 page = page
             )
             
-            // Parse remote response and convert to domain models
             val movies = parseMovieResponse(response)
             val moviePage = MoviePage(
                 page = page,
@@ -59,14 +56,10 @@ class MovieRepositoryImpl @Inject constructor(
                 totalPages = (response["total_pages"] as? Double)?.toInt() ?: 0
             )
             
-            // Cache successful results for future offline access
             cacheSearchResults(movies)
-            
-            // Emit successful remote result
             emit(Resource.Success(moviePage))
             
         } catch (e: Exception) {
-            // Error/Offline: Catch exceptions, then query movieDao.searchCachedMovies
             try {
                 val cachedEntities = movieDao.searchCachedMovies(query)
                 val cachedMovies = cachedEntities.map { entity ->
@@ -79,21 +72,18 @@ class MovieRepositoryImpl @Inject constructor(
                 }
                 
                 if (cachedMovies.isNotEmpty()) {
-                    // Emit local fallback result
                     val localPage = MoviePage(
-                        page = 1, // Local search doesn't support pagination
+                        page = 1,
                         results = cachedMovies,
                         totalResults = cachedMovies.size,
                         totalPages = 1
                     )
                     emit(Resource.Success(localPage))
                 } else {
-                    // No cached results available
-                    emit(Resource.Error("No internet connection and no cached results found for \"$query\""))
+                    emit(Resource.Error("No results found for \"$query\""))
                 }
             } catch (dbError: Exception) {
-                // Database error as well
-                emit(Resource.Error("Search failed: ${e.message ?: "Network error"} and database error: ${dbError.message}"))
+                emit(Resource.Error("Search failed: ${e.message ?: "Network error"}"))
             }
         }
     }
@@ -211,7 +201,11 @@ class MovieRepositoryImpl @Inject constructor(
                 val posterPath = movieData["poster_path"] as? String
                 val releaseDate = movieData["release_date"] as? String ?: ""
                 
-                val posterUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: ""
+                val posterUrl = if (posterPath != null) {
+                    "https://image.tmdb.org/t/p/w500$posterPath"
+                } else {
+                    ""
+                }
                 
                 Movie(
                     id = id,
@@ -220,7 +214,7 @@ class MovieRepositoryImpl @Inject constructor(
                     releaseDate = releaseDate
                 )
             } catch (e: Exception) {
-                null // Skip malformed entries
+                null
             }
         }
     }
@@ -237,7 +231,7 @@ class MovieRepositoryImpl @Inject constructor(
                 movieDao.insertMovie(entity)
             }
         } catch (e: Exception) {
-            // Ignore cache failures, don't let them affect the main search flow
+            // Ignore failures - cache is optional
         }
     }
 }

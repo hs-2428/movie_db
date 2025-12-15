@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import com.example.movies_db.data.remote.ApiService
+import com.example.movies_db.domain.model.Genre
 import com.example.movies_db.domain.model.Movie
 import com.example.movies_db.domain.model.MoviePage
 import com.example.movies_db.domain.model.Resource
@@ -131,6 +132,16 @@ class MovieRepositoryImpl @Inject constructor(
         return WatchProviders(link, providers)
     }
 
+    override suspend fun getGenres(): List<Genre> {
+        return try {
+            // TODO: Call apiService.getGenres() when API is ready
+            getMockGenres()
+        } catch (e: Exception) {
+            // Fallback to basic genres if API fails
+            getBasicGenres()
+        }
+    }
+
     override fun getWatchlist(): Flow<List<Movie>> {
         return kotlinx.coroutines.flow.emptyFlow()
     }
@@ -233,5 +244,38 @@ class MovieRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             // Ignore failures - cache is optional
         }
+    }
+
+    private fun getMockGenres(): List<Genre> {
+        return listOf(
+            Genre(28, "Action"),
+            Genre(12, "Adventure"),
+            Genre(16, "Animation"),
+            Genre(35, "Comedy"),
+            Genre(80, "Crime"),
+            Genre(99, "Documentary"),
+            Genre(18, "Drama"),
+            Genre(10751, "Family"),
+            Genre(14, "Fantasy"),
+            Genre(36, "History"),
+            Genre(27, "Horror"),
+            Genre(10402, "Music"),
+            Genre(9648, "Mystery"),
+            Genre(10749, "Romance"),
+            Genre(878, "Science Fiction"),
+            Genre(53, "Thriller"),
+            Genre(10752, "War"),
+            Genre(37, "Western")
+        )
+    }
+
+    private fun getBasicGenres(): List<Genre> {
+        return listOf(
+            Genre(1, "Action"),
+            Genre(2, "Comedy"),
+            Genre(3, "Drama"),
+            Genre(4, "Horror"),
+            Genre(5, "Romance")
+        )
     }
 }

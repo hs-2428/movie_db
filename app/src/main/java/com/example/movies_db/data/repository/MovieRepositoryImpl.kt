@@ -4,9 +4,11 @@ import com.example.movies_db.data.local.MovieDao
 import com.example.movies_db.data.local.MovieEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 import com.example.movies_db.data.remote.ApiService
 import com.example.movies_db.domain.model.Movie
 import com.example.movies_db.domain.model.MoviePage
+import com.example.movies_db.domain.model.Resource
 import com.example.movies_db.domain.model.WatchProviders
 import com.example.movies_db.domain.model.WatchProvider
 import com.example.movies_db.domain.repository.MovieRepository
@@ -36,22 +38,63 @@ class MovieRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun searchMovies(query: String, page: Int): MoviePage {
+    override fun searchMovies(query: String, page: Int): Flow<Resource<MoviePage>> = flow {
+        // Emit loading state
+        emit(Resource.Loading())
+        
         try {
-            val mockMovies = generateMockSearchResults(query, page)
-            return MoviePage(
-                page = page,
-                results = mockMovies,
-                totalResults = 50 * query.length,
-                totalPages = 25
+            // Primary: Call apiService.discoverMovies with filters (using searchMovies endpoint)
+            val response = apiService.searchMovies(
+                apiKey = "your_api_key_here", // TODO: Use BuildConfig.API_KEY
+                query = query,
+                page = page
             )
+            
+            // Parse remote response and convert to domain models
+            val movies = parseMovieResponse(response)
+            val moviePage = MoviePage(
+                page = page,
+                results = movies,
+                totalResults = (response["total_results"] as? Double)?.toInt() ?: 0,
+                totalPages = (response["total_pages"] as? Double)?.toInt() ?: 0
+            )
+            
+            // Cache successful results for future offline access
+            cacheSearchResults(movies)
+            
+            // Emit successful remote result
+            emit(Resource.Success(moviePage))
+            
         } catch (e: Exception) {
-            return MoviePage(
-                page = page,
-                results = emptyList(),
-                totalResults = 0,
-                totalPages = 0
-            )
+            // Error/Offline: Catch exceptions, then query movieDao.searchCachedMovies
+            try {
+                val cachedEntities = movieDao.searchCachedMovies(query)
+                val cachedMovies = cachedEntities.map { entity ->
+                    Movie(
+                        id = entity.id,
+                        title = entity.title,
+                        posterUrl = entity.posterUrl,
+                        releaseDate = entity.releaseDate
+                    )
+                }
+                
+                if (cachedMovies.isNotEmpty()) {
+                    // Emit local fallback result
+                    val localPage = MoviePage(
+                        page = 1, // Local search doesn't support pagination
+                        results = cachedMovies,
+                        totalResults = cachedMovies.size,
+                        totalPages = 1
+                    )
+                    emit(Resource.Success(localPage))
+                } else {
+                    // No cached results available
+                    emit(Resource.Error("No internet connection and no cached results found for \"$query\""))
+                }
+            } catch (dbError: Exception) {
+                // Database error as well
+                emit(Resource.Error("Search failed: ${e.message ?: "Network error"} and database error: ${dbError.message}"))
+            }
         }
     }
 
@@ -156,5 +199,45 @@ class MovieRepositoryImpl @Inject constructor(
                 )
             )
         )
+    }
+
+    private fun parseMovieResponse(response: Map<String, Any>): List<Movie> {
+        val results = response["results"] as? List<Map<String, Any>> ?: return emptyList()
+        
+        return results.mapNotNull { movieData ->
+            try {
+                val id = (movieData["id"] as? Double)?.toInt() ?: return@mapNotNull null
+                val title = movieData["title"] as? String ?: return@mapNotNull null
+                val posterPath = movieData["poster_path"] as? String
+                val releaseDate = movieData["release_date"] as? String ?: ""
+                
+                val posterUrl = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" } ?: ""
+                
+                Movie(
+                    id = id,
+                    title = title,
+                    posterUrl = posterUrl,
+                    releaseDate = releaseDate
+                )
+            } catch (e: Exception) {
+                null // Skip malformed entries
+            }
+        }
+    }
+
+    private suspend fun cacheSearchResults(movies: List<Movie>) {
+        try {
+            movies.forEach { movie ->
+                val entity = MovieEntity(
+                    id = movie.id,
+                    title = movie.title,
+                    posterUrl = movie.posterUrl,
+                    releaseDate = movie.releaseDate
+                )
+                movieDao.insertMovie(entity)
+            }
+        } catch (e: Exception) {
+            // Ignore cache failures, don't let them affect the main search flow
+        }
     }
 }

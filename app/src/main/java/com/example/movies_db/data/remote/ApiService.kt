@@ -1,6 +1,7 @@
 package com.example.movies_db.data.remote
 
 import retrofit2.http.GET
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ApiService {
@@ -17,5 +18,12 @@ interface ApiService {
         @Query("api_key") apiKey: String,
         @Query("query") query: String,
         @Query("page") page: Int = 1
+    ): Map<String, Any> // They will replace Map with a real DTO class
+    
+    // Get watch providers for a specific movie
+    @GET("movie/{movie_id}/watch/providers")
+    suspend fun getWatchProviders(
+        @Path("movie_id") movieId: Int,
+        @Query("api_key") apiKey: String
     ): Map<String, Any> // They will replace Map with a real DTO class
 }

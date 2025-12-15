@@ -22,3 +22,29 @@ data class PaginatedMovies(
     val isLoading: Boolean = false,
     val isError: Boolean = false
 )
+
+// Watch Provider Models
+data class WatchProvider(
+    val providerId: Int,
+    val providerName: String,
+    val logoPath: String,
+    val link: String? = null,
+    val type: ProviderType
+)
+
+data class RegionalProviders(
+    val region: String,
+    val link: String? = null,
+    val flatrate: List<WatchProvider> = emptyList(),
+    val buy: List<WatchProvider> = emptyList(),
+    val rent: List<WatchProvider> = emptyList()
+)
+
+data class WatchProviderResponse(
+    val id: Int,
+    val results: Map<String, RegionalProviders>
+)
+
+enum class ProviderType {
+    FLATRATE, BUY, RENT
+}

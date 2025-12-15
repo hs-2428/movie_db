@@ -5,6 +5,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.movies_db.ui.screens.HomeScreen
+import com.example.movies_db.ui.screens.WatchlistScreen
 
 @Composable
 fun AppNavigation() {
@@ -19,8 +20,9 @@ fun AppNavigation() {
             HomeScreen(navController = navController)
         }
 
-        // Route 2: Watchlist (Placeholder for now)
+        // Route 2: Segmented Watchlist with released/upcoming movies
         composable(route = Screen.Watchlist.route) {
+            WatchlistScreen(navController = navController)
         }
 
         // Route 3: Detail (Placeholder for now)

@@ -5,7 +5,9 @@ data class Movie(
     val title: String,
     val posterUrl: String,
     val releaseDate: String,
-    val inWatchlist: Boolean = false
+    val inWatchlist: Boolean = false,
+    val overview: String? = null,
+    val genres: List<Genre> = emptyList()
 )
 
 data class MoviePage(

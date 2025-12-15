@@ -16,4 +16,13 @@ interface MovieDao {
 
     @Query("SELECT * FROM movies WHERE title LIKE '%' || :query || '%'")
     suspend fun searchCachedMovies(query: String): List<MovieEntity>
+
+    @Query("SELECT * FROM movies WHERE isInWatchlist = 1")
+    fun getWatchlistMovies(): Flow<List<MovieEntity>>
+
+    @Query("UPDATE movies SET isInWatchlist = :inWatchlist WHERE id = :movieId")
+    suspend fun updateWatchlistStatus(movieId: Int, inWatchlist: Boolean)
+
+    @Query("SELECT * FROM movies WHERE id = :movieId")
+    suspend fun getMovieById(movieId: Int): MovieEntity?
 }

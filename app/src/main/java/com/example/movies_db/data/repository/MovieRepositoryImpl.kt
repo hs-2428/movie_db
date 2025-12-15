@@ -5,7 +5,9 @@ import com.example.movies_db.data.local.MovieEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import com.example.movies_db.data.remote.ApiService
+import com.example.movies_db.domain.model.Genre
 import com.example.movies_db.domain.model.Movie
 import com.example.movies_db.domain.model.MoviePage
 import com.example.movies_db.domain.model.Resource
@@ -142,11 +144,33 @@ class MovieRepositoryImpl @Inject constructor(
     }
 
     override fun getWatchlist(): Flow<List<Movie>> {
-        return kotlinx.coroutines.flow.emptyFlow()
+        return movieDao.getWatchlistMovies().map { entities ->
+            entities.map { entity ->
+                Movie(
+                    id = entity.id,
+                    title = entity.title,
+                    posterUrl = entity.posterUrl,
+                    releaseDate = entity.releaseDate,
+                    inWatchlist = entity.isInWatchlist
+                )
+            }
+        }
     }
 
     override suspend fun toggleWatchlist(movie: Movie) {
-        // TODO
+        val existingMovie = movieDao.getMovieById(movie.id)
+        if (existingMovie != null) {
+            movieDao.updateWatchlistStatus(movie.id, !movie.inWatchlist)
+        } else {
+            val movieEntity = MovieEntity(
+                id = movie.id,
+                title = movie.title,
+                posterUrl = movie.posterUrl,
+                releaseDate = movie.releaseDate,
+                isInWatchlist = true
+            )
+            movieDao.insertMovie(movieEntity)
+        }
     }
 
     private fun generateMockMovies(page: Int): List<Movie> {
@@ -222,6 +246,31 @@ class MovieRepositoryImpl @Inject constructor(
             } catch (e: Exception) {
                 null // Skip malformed entries
             }
+        }
+    }
+
+    override suspend fun getGenres(): Resource<List<Genre>> {
+        return try {
+            val response = apiService.getGenres("your_api_key_here")
+            val genresData = response["genres"] as? List<Map<String, Any>> ?: emptyList()
+            
+            val genres = genresData.mapNotNull { genreMap ->
+                try {
+                    val id = (genreMap["id"] as? Double)?.toInt() ?: (genreMap["id"] as? Int) ?: return@mapNotNull null
+                    val name = genreMap["name"] as? String ?: return@mapNotNull null
+                    
+                    Genre(
+                        id = id,
+                        name = name
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            
+            Resource.Success(genres)
+        } catch (e: Exception) {
+            Resource.Error("Failed to fetch genres: ${e.message}")
         }
     }
 

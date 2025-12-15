@@ -26,4 +26,10 @@ interface ApiService {
         @Path("movie_id") movieId: Int,
         @Query("api_key") apiKey: String
     ): Map<String, Any> // They will replace Map with a real DTO class
+    
+    // Get movie genres
+    @GET("genre/movie/list")
+    suspend fun getGenres(
+        @Query("api_key") apiKey: String
+    ): Map<String, Any> // They will replace Map with a real DTO class
 }

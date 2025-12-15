@@ -82,6 +82,7 @@ dependencies {
     // Background Work
     implementation(libs.coroutines.android)
     implementation(libs.androidx.work.runtime.ktx) // New: WorkManager Runtime
+    implementation(libs.androidx.hilt.work) // New: Hilt WorkManager Integration
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

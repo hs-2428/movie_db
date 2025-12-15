@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.movies_db.ui.screens.HomeScreen
 import com.example.movies_db.ui.screens.SearchScreen
+import com.example.movies_db.ui.screens.MovieDetailScreen
 
 @Composable
 fun AppNavigation() {
@@ -13,26 +14,25 @@ fun AppNavigation() {
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Search.route // Start with search to demo pagination
+        startDestination = Screen.Search.route
     ) {
-        // Route 1: Home
         composable(route = Screen.Home.route) {
             HomeScreen(navController = navController)
         }
         
-        // Route 2: Search with infinite scroll
         composable(route = Screen.Search.route) {
             SearchScreen(navController = navController)
         }
 
-        // Route 3: Watchlist (Placeholder for now)
         composable(route = Screen.Watchlist.route) {
         }
 
-        // Route 4: Detail (Placeholder for now)
         composable(route = Screen.Detail.route) { backStackEntry ->
-            // val movieId = backStackEntry.arguments?.getString("movieId")
-            // DetailScreen(movieId)
+            val movieId = backStackEntry.arguments?.getString("movieId")?.toIntOrNull() ?: 0
+            MovieDetailScreen(
+                movieId = movieId,
+                navController = navController
+            )
         }
     }
 }

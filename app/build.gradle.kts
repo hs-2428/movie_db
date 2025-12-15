@@ -73,6 +73,14 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    
+    // Testing dependencies for WorkManager and mocking
+    testImplementation("androidx.work:work-testing:2.8.1")
+    testImplementation("io.mockk:mockk:1.12.0")
+    testImplementation("org.robolectric:robolectric:4.9.2")
+    testImplementation("androidx.test:core:1.4.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4")
+    
     // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)

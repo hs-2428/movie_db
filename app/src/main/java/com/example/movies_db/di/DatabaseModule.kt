@@ -21,7 +21,9 @@ object DatabaseModule {
             app,
             MovieDatabase::class.java,
             "movie_database"
-        ).build()
+        )
+            .addMigrations(MovieDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides

@@ -67,8 +67,7 @@ class MovieRepositoryImpl @Inject constructor(
                         id = entity.id,
                         title = entity.title,
                         posterUrl = entity.posterUrl,
-                        releaseDate = entity.releaseDate,
-                        inWatchlist = entity.inWatchlist
+                        releaseDate = entity.releaseDate
                     )
                 }
                 
@@ -227,10 +226,7 @@ class MovieRepositoryImpl @Inject constructor(
                     id = movie.id,
                     title = movie.title,
                     posterUrl = movie.posterUrl,
-                    releaseDate = movie.releaseDate,
-                    inWatchlist = movie.inWatchlist,
-                    overview = null,
-                    rating = 0f
+                    releaseDate = movie.releaseDate
                 )
                 movieDao.insertMovie(entity)
             }

@@ -1,6 +1,7 @@
 package com.example.movies_db.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -9,8 +10,15 @@ import com.example.movies_db.ui.screens.SearchScreen
 import com.example.movies_db.ui.screens.MovieDetailScreen
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(initialMovieId: Int? = null) {
     val navController = rememberNavController()
+
+    // Handle deep link navigation
+    LaunchedEffect(initialMovieId) {
+        initialMovieId?.let { movieId ->
+            navController.navigate(Screen.Detail.createRoute(movieId))
+        }
+    }
 
     NavHost(
         navController = navController,
